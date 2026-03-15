@@ -1,6 +1,22 @@
 # lb-upload-azure-blob
 
-A FiveM script that allows you to upload media files directly to Azure Blob Storage. It also allows you to access the files.
+A FiveM script that serves as an alternative to [lb-upload](https://github.com/lbphone/lb-upload), persisting media files to **Azure Blob Storage** instead of your game server.
+
+**How traffic works:**
+- **Downloads (read):** Clients fetch files directly from Azure Blob Storage — no traffic hits your server.
+- **Uploads (write):** Files are uploaded through your server first, then stored in Azure Blob Storage.
+
+```mermaid
+flowchart LR
+    Client -->|"Upload <br> (inbound)"| Server["FiveM Server"]
+    Server -->|"Upload <br> (forward)"| Blob[("Azure Blob<br>Storage")]
+    Blob -->|"Download <br> (direct)"| Client
+```
+
+> **Note:** This is not a drop-in replacement for Fivemanage or similar services. Due to current limitations in how lb-phone handles uploads, upload traffic still arrives at your server first before being forwarded to Azure Blob Storage.
+> If you'd like to see native storage support added directly to lb-phone, consider upvoting [this feature request](https://discord.com/channels/1032005998895960135/1482163603657461870). If it gets implemented, this script would no longer be needed.
+
+> **Migrating from lb-upload?** No file or data migration needed. Keep lb-upload as-is, add this resource alongside it, and downloads of your existing files should continue to work.
 
 ## Requirements
 The Azure Storage Blob container requires public read access.
@@ -49,11 +65,11 @@ If you create the container in advance, set the container-level access permissio
 
 This script was primarily developed to be used with [lb-phone](https://store.lbphone.com/). Follow these steps to set it up with lb-phone:
 
-1. Set `Config.UploadMethod` to `Custom` in `lb-phone/config/config.lua`.
+1. Set `Config.UploadMethod` to `LBUpload` in `lb-phone/config/config.lua`.
 ```lua
-    Config.UploadMethod.Video = "Custom"
-    Config.UploadMethod.Image = "Custom"
-    Config.UploadMethod.Audio = "Custom"
+    Config.UploadMethod.Video = "LBUpload"
+    Config.UploadMethod.Image = "LBUpload"
+    Config.UploadMethod.Audio = "LBUpload"
 ```
 2. Add `windows.net` to `Config.UploadWhitelistedDomains` in `lb-phone/config/config.lua`.
 ```lua
@@ -71,6 +87,25 @@ This script was primarily developed to be used with [lb-phone](https://store.lbp
     }
 ```
 4. Set `UploadMethods.LBUpload.Default.url` to `https://BASE_URL/lb-upload-azure-blob/` in `lb-phone/shared/upload.lua`.
+```lua
+    LBUpload = {
+        Default = {
+            url = "https://BASE_URL/lb-upload-azure-blob/",
+            field = "file",
+            headers = {
+                ["Authorization"] = "API_KEY"
+            },
+            error = {
+                path = "success",
+                value = false
+            },
+            success = {
+                path = "link"
+            },
+            sendPlayer = "metadata"
+        },
+    },
+```
 
 ## Development
 
