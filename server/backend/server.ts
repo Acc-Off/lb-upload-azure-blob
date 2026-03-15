@@ -64,27 +64,24 @@ on('onServerResourceStart', (resourceName: string) => {
         return
     }
 
-    // Connect to Azure Storage account and initialize the Blob Storage client
-    const { AccountName, AccountKey, ContainerName } = config.AzureStorage
-    if (AccountName && AccountKey) {
-        const credential = new StorageSharedKeyCredential(AccountName, AccountKey)
-        blobServiceClient = new BlobServiceClient(`https://${AccountName}.blob.core.windows.net`, credential)
-
-        // Create containers if they do not exist (with anonymous read access)
-        ;(async () => {
-            const names = [ContainerName.Images, ContainerName.Videos, ContainerName.Audio]
-            for (const name of names) {
-                if (name) {
-                    const containerClient = blobServiceClient!.getContainerClient(name)
-                    await containerClient.createIfNotExists({ access: 'blob' })
-                    console.log(`^4[VERBOSE]Container "${name}" is ready.^0`)
-                }
-            }
-        })().catch((err) => console.error('^1[ERROR]Failed to initialize containers:^0', err))
-    }
 })
 
 let blobServiceClient: BlobServiceClient | null = null
+const initializedContainers = new Set<string>()
+
+async function ensureContainer(containerName: string): Promise<void> {
+    if (!blobServiceClient) {
+        const { AccountName, AccountKey } = config.AzureStorage
+        if (!AccountName || !AccountKey) throw new Error('Azure Storage account name or key is not configured')
+        const credential = new StorageSharedKeyCredential(AccountName, AccountKey)
+        blobServiceClient = new BlobServiceClient(`https://${AccountName}.blob.core.windows.net`, credential)
+    }
+    if (initializedContainers.has(containerName)) return
+    const containerClient = blobServiceClient.getContainerClient(containerName)
+    const { succeeded } = await containerClient.createIfNotExists({ access: 'blob' })
+    initializedContainers.add(containerName)
+    if (succeeded) console.log(`^7[INFO]Container "${config.AzureStorage.AccountName}/${containerName}" created.^0`)
+}
 
 function isIpConnected(ipToCheck: string) {
     for (let i = 0; i < GetNumPlayerIndices(); i++) {
@@ -156,13 +153,6 @@ router.post('', upload.single('file'), async (ctx) => {
         return
     }
 
-    if (!blobServiceClient) {
-        ctx.status = 503
-        ctx.body = 'Storage not initialized'
-        console.log('^1[ERROR]Storage not initialized^0')
-        return
-    }
-
     const { ContainerName } = AzureStorage
     let containerName: string
     if (mimetype.startsWith('image/')) {
@@ -171,6 +161,15 @@ router.post('', upload.single('file'), async (ctx) => {
         containerName = ContainerName.Videos
     } else {
         containerName = ContainerName.Audio
+    }
+
+    try {
+        await ensureContainer(containerName)
+    } catch (err) {
+        ctx.status = 503
+        ctx.body = 'Storage container unavailable'
+        console.error('^1[ERROR]Failed to ensure container:^0', err)
+        return
     }
 
     const filename = `${uuid()}.${extension}`
