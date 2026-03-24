@@ -1,5 +1,11 @@
 # lb-upload-azure-blob
 
+> [!WARNING]
+> **This repository is deprecated and no longer maintained.**
+> Please use one of the following alternatives instead:
+> - [lb-presigned-with-metadata](https://github.com/Acc-Off/lb-presigned-with-metadata) — Base64-based upload with per-player path support
+> - [lb-presigned-lua](https://github.com/Acc-Off/lb-presigned-lua) — Presigned URL-based upload (inspired by lb-presigned, with Azure Blob support added)
+
 A FiveM script that serves as an alternative to [lb-upload](https://github.com/lbphone/lb-upload), persisting media files to **Azure Blob Storage** instead of your game server.
 
 **How traffic works:**
